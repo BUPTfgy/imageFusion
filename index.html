@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>图像融合处理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --secondary: #607D8B;
+            --background: #f5f5f5;
+            --surface: #FFFFFF;
+        }
+
+        body {
+            margin: 0;
+            padding: 2rem;
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .upload-card {
+            border: 2px dashed var(--secondary);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .upload-card:hover {
+            border-color: var(--primary);
+            background: rgba(76, 175, 80, 0.05);
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .progress {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>多模态图像融合处理系统</h1>
+            <p>支持可见光与红外图像融合处理</p>
+        </div>
+
+        <div class="controls">
+            <div>
+                <select id="algorithm">
+                    <option value="">选择融合算法</option>
+                </select>
+            </div>
+            <div>
+                <input type="text" id="outputName" placeholder="输入结果名称" value="fusion_result">
+            </div>
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-card" id="visibleUpload">
+                <h3>可见光图像</h3>
+                <input type="file" id="visibleInput" multiple webkitdirectory hidden
+                       accept="image/png, image/jpeg, image/bmp">
+                <button onclick="document.getElementById('visibleInput').click()">
+                    <i class="mdi mdi-folder-upload"></i>
+                    选择文件或文件夹
+                </button>
+                <div class="preview-grid" id="visiblePreview"></div>
+            </div>
+
+            <div class="upload-card" id="infraredUpload">
+                <h3>红外图像</h3>
+                <input type="file" id="infraredInput" multiple webkitdirectory hidden
+                       accept="image/png, image/jpeg, image/bmp">
+                <button onclick="document.getElementById('infraredInput').click()">
+                    <i class="mdi mdi-folder-upload"></i>
+                    选择文件或文件夹
+                </button>
+                <div class="preview-grid" id="infraredPreview"></div>
+            </div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+
+        <button onclick="startProcessing()" style="width: 100%; justify-content: center;">
+            <i class="mdi mdi-image-auto-adjust"></i>
+            开始融合处理
+        </button>
+    </div>
+
+    <script>
+        let visibleFiles = [];
+        let infraredFiles = [];
+        
+        // 初始化加载算法列表
+        fetch('/algorithms')
+            .then(r => r.json())
+            .then(algorithms => {
+                const select = document.getElementById('algorithm');
+                algorithms.forEach(a => {
+                    const option = document.createElement('option');
+                    option.value = a;
+                    option.textContent = a.toUpperCase();
+                    select.appendChild(option);
+                });
+            });
+
+        // 文件选择处理
+        function handleFileSelect(files, previewId) {
+            const preview = document.getElementById(previewId);
+            preview.innerHTML = '';
+            
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.className = 'preview-image';
+                    img.src = e.target.result;
+                    preview.appendChild(img);
+                }
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 可见光文件选择
+        document.getElementById('visibleInput').addEventListener('change', e => {
+            visibleFiles = e.target.files;
+            handleFileSelect(visibleFiles, 'visiblePreview');
+        });
+
+        // 红外文件选择
+        document.getElementById('infraredInput').addEventListener('change', e => {
+            infraredFiles = e.target.files;
+            handleFileSelect(infraredFiles, 'infraredPreview');
+        });
+
+        // 开始处理
+        async function startProcessing() {
+            const algorithm = document.getElementById('algorithm').value;
+            const outputName = document.getElementById('outputName').value;
+
+            if (!algorithm || !outputName) {
+                alert('请选择算法并输入结果名称');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('algorithm', algorithm);
+            formData.append('outputName', outputName);
+            
+            Array.from(visibleFiles).forEach(f => formData.append('visible', f));
+            Array.from(infraredFiles).forEach(f => formData.append('infrared', f));
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    window.location.href = result.downloadUrl;
+                } else {
+                    alert('处理失败: ' + result.message);
+                }
+            } catch (e) {
+                alert('请求错误: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
